@@ -1,0 +1,19 @@
+name: Public Practice CI
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  practice:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check tests
+        run: python3 -m unittest discover -s tests -v
+      - name: Check trusted reference implementation
+        run: python3 scripts/check_solution.py --entrypoint examples/reference/main.py
