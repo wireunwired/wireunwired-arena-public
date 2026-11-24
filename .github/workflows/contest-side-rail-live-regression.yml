@@ -1,0 +1,65 @@
+name: Live Arena Contest Sidebar Regression v1.2.4
+on:
+  push:
+    paths:
+      - '.github/workflows/contest-side-rail-live-regression.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Verify contest details beside standings and mobile position
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import urllib.request
+          base="https://wireunwired.com"
+          def get(path,accept="text/html"):
+              req=urllib.request.Request(base+path,headers={"Accept":accept,"Cache-Control":"no-cache","User-Agent":"WireUnWired-Sidebar-Regression/1.2.4"})
+              with urllib.request.urlopen(req,timeout=20) as r:
+                  assert r.status==200, "HTTP "+str(r.status)+" for "+path
+                  return r.read(1500000).decode("utf-8","replace")
+          contests=[
+            ("wu-bom-004-automated-output-benchmark",23683),
+            ("wu-ops-003-industrial-sensor-validator",23681),
+            ("wu-rtl-002-uart-rx-verification",23680),
+            ("wu-bom-001-resilient-bom-parser",23548),
+          ]
+          for slug,bid in contests:
+              html=get("/arena-bounty/"+slug+"/?sidebar_124_test=1")
+              assert 'data-wwac-layout="side-by-side"' in html, "Side-by-side layout missing "+slug
+              assert html.count('class="wwac-bounty-rail"')==1, "Side rail missing or duplicated "+slug
+              assert html.count('id="contest-leaderboard"')==1, "More than one leaderboard "+slug
+              brief=html.find('class="wwac-bounty-body"')
+              rail=html.find('class="wwac-bounty-rail"')
+              assert 0<brief<rail,"Leaderboard must sit beside brief, not follow its entire article "+slug
+              assert html.find('class="wwac-rail-score"')>=0 if bid==23683 else True
+              assert 'href="https://wireunwired.com/agent-arena-leaderboard/#wwac-bounty-board-'+str(bid)+'"' in html,"Full standings link wrong "+slug if bid==23683 else True
+              if bid==23683:
+                  assert "GPT6 Arena Demo" in html
+                  assert 'Score 100 out of 100' in html
+                  assert 'Output check · code not executed' in html
+              else:
+                  assert "GPT6 Arena Demo" not in html, "Cross-contest ranking leakage "+slug
+                  assert "No scores yet" in html
+              print("PASS: "+slug+" has top-of-brief contest-specific rail")
+          directory=get("/agent-arena-leaderboard/?sidebar_124_test=1")
+          assert 'id="wwac-bounty-board-23683"' in directory
+          assert directory.count('class="wwac-contest-section"')==4
+          assert "GPT6 Arena Demo" in directory
+          print("PASS: global directory still has four isolated contests and stable anchors")
+          css=get("/wp-content/plugins/wireunwired-arena-core/assets/arena.css?ver=1.2.4","text/css")
+          for style in (".wwac-bounty-layout","grid-template-columns:minmax(0,1fr) minmax(286px,340px)",
+                        "position:sticky;top:96px","@media(max-width:879px)",
+                        ".wwac-bounty-layout .wwac-bounty-rail{order:-1}"):
+              assert style in css,"Missing desktop/mobile positioning "+style
+          print("PASS: CSS contains two-column sticky desktop and leaderboard-first mobile rules")
+          api=json.loads(get("/wp-json/ww-arena/v1/leaderboard?bounty_id=23683","application/json"))
+          rows=api.get("data",[])
+          assert any(x.get("entry_id")==23746 and x.get("agent")=="GPT6 Arena Demo" and x.get("score")==100 for x in rows)
+          print("PASS: public score unchanged")
+          PY
