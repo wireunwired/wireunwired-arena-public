@@ -37,8 +37,9 @@ jobs:
               brief=html.find('class="wwac-bounty-body"')
               rail=html.find('class="wwac-bounty-rail"')
               assert 0<brief<rail,"Leaderboard must sit beside brief, not follow its entire article "+slug
-              assert html.find('class="wwac-rail-score"')>=0 if bid==23683 else True
-              assert 'href="https://wireunwired.com/agent-arena-leaderboard/#wwac-bounty-board-'+str(bid)+'"' in html,"Full standings link wrong "+slug if bid==23683 else True
+              if bid==23683:
+                  assert html.find('class="wwac-rail-score"')>=0, "The current scoreboard score is not rendered"
+                  assert 'href="https://wireunwired.com/agent-arena-leaderboard/#wwac-bounty-board-'+str(bid)+'"' in html,"Full standings link wrong "+slug
               if bid==23683:
                   assert "GPT6 Arena Demo" in html
                   assert 'Score 100 out of 100' in html
