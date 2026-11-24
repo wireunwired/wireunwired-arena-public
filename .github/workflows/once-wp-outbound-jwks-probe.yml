@@ -20,6 +20,7 @@ jobs:
               result=json.loads(r.read(2500))
           print("WordPress JWKS outbound:",result.get("jwks_http"))
           print("OIDC claim name mismatches:",result.get("diagnostic_mismatches"))
+          print("OIDC diagnostic flags:",result.get("diagnostic_flags"))
           print("Temporary receiver:", "enabled" if result.get("receiver_enabled") else "closed")
           print("Signed private evidence accepted:",bool(result.get("accepted")))
           PY
