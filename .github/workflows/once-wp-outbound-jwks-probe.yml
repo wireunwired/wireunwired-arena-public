@@ -24,3 +24,5 @@ jobs:
           print("Temporary receiver:", "enabled" if result.get("receiver_enabled") else "closed")
           print("Signed private evidence accepted:",bool(result.get("accepted")))
           PY
+
+# Owner-controlled post-rerun identity diagnostics
