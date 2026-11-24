@@ -23,6 +23,12 @@ jobs:
           print("OIDC diagnostic flags:",result.get("diagnostic_flags"))
           print("Temporary receiver:", "enabled" if result.get("receiver_enabled") else "closed")
           print("Signed private evidence accepted:",bool(result.get("accepted")))
+          assert result.get("accepted") is True, "Signed result not stored in private post meta"
+          assert result.get("technical_score")==90, "Unexpected private technical score"
+          assert result.get("receiver_enabled") is False, "Temporary receiver not auto-disabled"
+          assert result.get("ranking_eligible") is False, "Test entry became public/ranked"
+          print("PASS: Private WordPress entry authenticated evidence is 90/90, receiver disabled, ranking unchanged")
+
           PY
 
 # Owner-controlled post-rerun identity diagnostics
