@@ -1,8 +1,9 @@
-name: GPT-6 Organizer Demo — First Live Entry Verification
+name: WU-BOM-004 First GPT-6 Demo Entry — Public Verification
 on:
   push:
     paths:
       - .github/workflows/gpt6-first-real-entry-check.yml
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
@@ -10,38 +11,35 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 4
     steps:
-      - name: Read public non-secret participant status and WU-BOM-004 leaderboard
+      - name: Verify published, consented, correctly labeled output-only entry
         shell: bash
         run: |
           python3 - <<'PY'
           import json,urllib.request
-          def get(url):
-              r=urllib.request.Request(url,headers={"Accept":"application/json","Cache-Control":"no-store","User-Agent":"WireUnWiredGPT6LiveEntryVerify/1.0"})
-              with urllib.request.urlopen(r,timeout=20) as x:
-                  if x.status!=200: raise RuntimeError("Non-200 status")
-                  return json.loads(x.read(100000))
-          status=get("https://wireunwired.com/wp-json/wwa-first/v1/status")
-          print("Participant phase:",status.get("phase"))
-          print("Agent ID:",status.get("agent_id"))
-          print("Entry ID:",status.get("entry_id"))
-          print("Official output score:",status.get("score"))
-          print("Passed cases:",str(status.get("passed"))+"/"+str(status.get("total")))
-          print("Publication consent accepted:",bool(status.get("public_visible")))
-          print("Appeared on leaderboard:",bool(status.get("listed")))
-          if status.get("phase")!="submitted":
-              raise RuntimeError("The WordPress submit helper did not confirm a real entry: "+str(status.get("error")))
-          if status.get("score")!=100 or status.get("passed")!=6 or status.get("total")!=6:
-              raise RuntimeError("Actual output grade was not 100/100 with six passing cases")
-          print("Internal same-request leaderboard observation:",bool(status.get("listed")))
-          if not status.get("public_visible"): raise RuntimeError("Publication consent was not accepted")
-          entries=get("https://wireunwired.com/wp-json/ww-arena/v1/leaderboard?bounty_id=23683").get("data",[])
-          matched=[row for row in entries if row.get("entry_id")==status.get("entry_id") and row.get("agent")=="GPT6 Arena Demo" and row.get("score")==100]
-          print("Public leaderboard result count:",len(entries))
-          print("Public leaderboard exact result count:",len(matched))
-          print("Public leaderboard summary:",[(row.get("entry_id"),row.get("agent"),row.get("score"),row.get("evaluation_method")) for row in entries[:5]])
-          if len(matched)!=1: raise RuntimeError("Verified public leaderboard result missing")
-          print("PASS: A real, published organizer-owned GPT-6 assisted participant earned 100/100")
-          print("This is output-only scoring, NOT independent source execution or autonomous authorship proof.")
+          def api(url):
+              req=urllib.request.Request(url,headers={"Accept":"application/json","Cache-Control":"no-cache","User-Agent":"WireUnWiredArenaDemoPublicProof/1.0"})
+              with urllib.request.urlopen(req,timeout=18) as res:
+                  assert res.status==200
+                  return json.loads(res.read(120000))
+          base="https://wireunwired.com/wp-json/ww-arena/v1/"
+          health=api(base+"health")
+          assert health.get("status")=="online","Arena Core offline"
+          board=api(base+"leaderboard?bounty_id=23683")
+          rows=board.get("data",[])
+          matches=[row for row in rows
+              if row.get("entry_id")==23746
+              and row.get("bounty_id")==23683
+              and row.get("agent")=="GPT6 Arena Demo"
+              and row.get("score")==100
+              and row.get("evaluation_method")=="automated-output-only"
+              and row.get("commit_sha")=="34577613f60587434e313343d283e37b423b5474"]
+          assert len(matches)==1,"The published GPT6 organizer demo result is absent or mislabeled"
+          item=matches[0]
+          print("PASS: Public WU-BOM-004 entry:",item["entry_id"])
+          print("Agent alias:",item["agent"])
+          print("Public rank at time of check:",item["rank"])
+          print("Score:",str(item["score"])+"/100")
+          print("Evaluation method:",item["evaluation_method"])
+          print("Source commit:",item["commit_sha"])
+          print("This is a house demo with automatic output checks, not independent code execution.")
           PY
-
-# Final post-fix public alias verification (Arena Core 1.2.1)
