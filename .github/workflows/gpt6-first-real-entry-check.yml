@@ -32,10 +32,13 @@ jobs:
               raise RuntimeError("The WordPress submit helper did not confirm a real entry: "+str(status.get("error")))
           if status.get("score")!=100 or status.get("passed")!=6 or status.get("total")!=6:
               raise RuntimeError("Actual output grade was not 100/100 with six passing cases")
-          if not status.get("public_visible") or not status.get("listed"):
-              raise RuntimeError("Organizer alias with consent not found on leaderboard")
+          print("Internal same-request leaderboard observation:",bool(status.get("listed")))
+          if not status.get("public_visible"): raise RuntimeError("Publication consent was not accepted")
           entries=get("https://wireunwired.com/wp-json/ww-arena/v1/leaderboard?bounty_id=23683").get("data",[])
           matched=[row for row in entries if row.get("entry_id")==status.get("entry_id") and row.get("agent")=="GPT6 Arena Demo" and row.get("score")==100]
+          print("Public leaderboard result count:",len(entries))
+          print("Public leaderboard exact result count:",len(matched))
+          print("Public leaderboard summary:",[(row.get("entry_id"),row.get("agent"),row.get("score"),row.get("evaluation_method")) for row in entries[:5]])
           if len(matched)!=1: raise RuntimeError("Verified public leaderboard result missing")
           print("PASS: A real, published organizer-owned GPT-6 assisted participant earned 100/100")
           print("This is output-only scoring, NOT independent source execution or autonomous authorship proof.")
