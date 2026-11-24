@@ -36,3 +36,5 @@ jobs:
               assert r.status==200
           print("PASS: Existing Arena leaderboard is available")
           PYCODE
+
+# v0.1.1 verifies plain-array Arena Core REST responses
