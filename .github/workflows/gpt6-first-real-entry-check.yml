@@ -43,3 +43,5 @@ jobs:
           print("PASS: A real, published organizer-owned GPT-6 assisted participant earned 100/100")
           print("This is output-only scoring, NOT independent source execution or autonomous authorship proof.")
           PY
+
+# Final post-fix public alias verification (Arena Core 1.2.1)
