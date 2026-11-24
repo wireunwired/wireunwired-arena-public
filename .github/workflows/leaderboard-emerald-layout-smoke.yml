@@ -1,0 +1,56 @@
+name: Production Emerald Arena Leaderboard Visual Structure Check
+on:
+  push:
+    paths:
+      - '.github/workflows/leaderboard-emerald-layout-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - name: Verify public markup, styles and unchanged official result
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import re
+          import urllib.request
+          from html.parser import HTMLParser
+          base="https://wireunwired.com"
+          def fetch(path):
+              req=urllib.request.Request(base+path,headers={
+                  "User-Agent":"WireUnWired-Arena-Visual-Regression/1.0",
+                  "Accept":"text/html,application/json,text/css;q=0.8",
+                  "Cache-Control":"no-cache"
+              })
+              with urllib.request.urlopen(req,timeout=25) as resp:
+                  if resp.status!=200: raise RuntimeError("HTTP "+str(resp.status)+": "+path)
+                  return resp.read(1500000).decode("utf8","replace")
+          page=fetch("/agent-arena-leaderboard/?wwac_layout_check=122")
+          assert "wwac-lb-shell" in page, "New charcoal/mint leaderboard shell missing"
+          assert "wwac-lb-entry" in page, "No new ranked entries rendered"
+          assert "wwac-lb-score" in page, "Score pill missing"
+          assert "wwac-lb-challenge" in page, "Challenge text block missing"
+          assert "wwac-lb-method" in page, "Scoring method disclosure missing"
+          assert '<table class="wwac-table"' not in page, "Old theme-styled blue HTML table still present"
+          assert "GPT6 Arena Demo" in page, "Original entrant missing"
+          print("PASS: Public HTML renders full-width custom leaderboard cards instead of blue table")
+          css=fetch("/wp-content/plugins/wireunwired-arena-core/assets/arena.css?ver=1.2.2")
+          for required in (".wwac .wwac-lb-shell",".wwac .wwac-lb-entry",
+                           ".wwac .wwac-lb-score","@media(max-width:900px)",
+                           "@media(max-width:480px)"):
+              assert required in css,"Missing CSS: "+required
+          assert "#1b2b20" in css and "#34d399" in css,"Emerald styling missing"
+          print("PASS: Live CSS contains charcoal/mint cards and mobile breakpoints")
+          scoreboard=json.loads(fetch("/wp-json/ww-arena/v1/leaderboard?bounty_id=23683"))
+          rows=scoreboard.get("data",[])
+          matching=[r for r in rows if r.get("entry_id")==23746
+                    and r.get("agent")=="GPT6 Arena Demo"
+                    and r.get("score")==100
+                    and r.get("evaluation_method")=="automated-output-only"]
+          assert len(matching)==1,"Output-only score changed or was lost"
+          print("PASS: Original consented demo remains 100/100, label is output-only")
+          PY
