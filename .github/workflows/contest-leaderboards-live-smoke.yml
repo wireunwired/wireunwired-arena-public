@@ -1,0 +1,77 @@
+name: Live per-contest leaderboard regression
+on:
+  push:
+    paths:
+      - '.github/workflows/contest-leaderboards-live-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-scope:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Confirm rankings are embedded in the correct challenge and never mixed
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import re
+          import urllib.request
+          from html.parser import HTMLParser
+
+          base="https://wireunwired.com"
+          def get(path,accept="text/html"):
+              req=urllib.request.Request(base+path,headers={
+                  "Accept":accept,
+                  "Cache-Control":"no-cache",
+                  "User-Agent":"WireUnWired-Arena-Contest-Scope-CI/1.2.3"
+              })
+              with urllib.request.urlopen(req,timeout=20) as r:
+                  assert r.status==200, "Expected HTTP 200 at "+path
+                  return r.read(1000000).decode("utf-8","replace")
+
+          contests=[
+            ("wu-bom-004-automated-output-benchmark",23683),
+            ("wu-ops-003-industrial-sensor-validator",23681),
+            ("wu-rtl-002-uart-rx-verification",23680),
+            ("wu-bom-001-resilient-bom-parser",23548)
+          ]
+          homepage=get("/agent-arena-leaderboard/?contest_review=123")
+          assert "Competition leaderboards" in homepage, "Global page still uses the old mixed ranks"
+          assert "Scores from different engineering contests are never combined" in homepage
+          assert homepage.count('class="wwac-contest-section"')==4, "Expected exactly four independent contest sections"
+          assert homepage.count('id="contest-leaderboard"')==0, "Directory should not pretend to be a single ranking"
+          assert "GPT6 Arena Demo" in homepage
+          sections=homepage.split('class="wwac-contest-section"')[1:]
+          assert len(sections)==4
+          for section in sections:
+              if "WU-BOM-004" in section.split("</h2>",1)[0]:
+                  assert "GPT6 Arena Demo" in section, "Missing demo entrant in correct directory section"
+              else:
+                  assert "GPT6 Arena Demo" not in section, "Demo entrant mixed into unrelated contest directory section"
+          print("PASS: Global leaderboard now contains four distinct contest boards, with no cross-contest ranking")
+
+          for slug,bid in contests:
+              page=get("/arena-bounty/"+slug+"/?board_check=123")
+              assert 'id="contest-leaderboard"' in page,"Contest board missing from "+slug
+              assert page.count('id="contest-leaderboard"')==1,"Contest board duplicated on "+slug
+              assert "THIS CONTEST ONLY" in page,"Contest scope disclosure missing on "+slug
+              assert 'class="wwac-lb-shell"' in page or "No published results for this contest yet" in page, "No rank/empty-state for "+slug
+              if bid==23683:
+                  assert "GPT6 Arena Demo" in page,"Real ranked entrant missing on WU-BOM-004"
+                  assert "Automated output check" in page, "Missing output-only disclosure"
+                  assert 'aria-label="Score 100 out of 100"' in page, "Real score missing"
+              else:
+                  assert "GPT6 Arena Demo" not in page,"Cross-challenge score leaked onto "+slug
+              rest=json.loads(get("/wp-json/ww-arena/v1/leaderboard?bounty_id="+str(bid),"application/json"))["data"]
+              assert all(int(row["bounty_id"])==bid for row in rest),"REST score filter failed for "+slug
+              print("PASS: "+slug+" has only own contest results and a single embedded board")
+
+          detail=json.loads(get("/wp-json/ww-arena/v1/bounties/23683","application/json"))
+          assert 'id="contest-leaderboard"' not in detail.get("brief_html",""),"REST contest brief unexpectedly has injected HTML"
+          print("PASS: REST contest brief remains unchanged")
+          css=get("/wp-content/plugins/wireunwired-arena-core/assets/arena.css?ver=1.2.3","text/css")
+          assert ".wwac-contest-directory" in css and ".wwac-contest-board" in css,"Per-contest styles were not deployed"
+          print("PASS: Per-contest emerald CSS shipped")
+          PY
