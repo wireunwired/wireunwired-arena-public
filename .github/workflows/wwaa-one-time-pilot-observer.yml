@@ -36,5 +36,18 @@ jobs:
           assert x.get("public_score_empty") is True
           assert x.get("queue_state") in ("queued","claimed","graded")
           assert x.get("phase") in ("queued","evidence_accepted","graded")
+          if x.get("phase")=="queued":
+              invalid=urllib.request.Request(
+                  "https://wireunwired.com/wp-json/wwaa/v1/claim",method="POST",
+                  data=json.dumps({"run_id":"1/1","nonce":"0"*32,"id_token":"invalid"}).encode(),
+                  headers={"Content-Type":"application/json","Accept":"application/json"})
+              import urllib.error
+              try:
+                  with urllib.request.urlopen(invalid,timeout=16) as result:
+                      status=result.status
+              except urllib.error.HTTPError as ex:
+                  status=ex.code
+              assert status in (400,403),"Unauthenticated synthetic claim must not be accepted"
+              print("PASS: Real unauthenticated external claims rejected during one-off pilot")
           print("PASS: Disposable private registered test entry is isolated; public scoring untouched")
           PY
