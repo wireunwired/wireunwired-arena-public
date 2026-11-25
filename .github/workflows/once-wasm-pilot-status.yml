@@ -1,0 +1,31 @@
+name: One-Time Private WASM Report Readback Diagnostic
+on:
+  push:
+    paths:
+      - .github/workflows/once-wasm-pilot-status.yml
+permissions:
+  contents: read
+jobs:
+  observe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Show nonsecret pilot state after signed report delivery and replay attempt
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,urllib.request
+          url="https://wireunwired.com/wp-json/wwaa-smoke/v1/status"
+          req=urllib.request.Request(url,headers={"Accept":"application/json","Cache-Control":"no-store"})
+          with urllib.request.urlopen(req,timeout=18) as r:
+              obj=json.loads(r.read(7000))
+          for key in ("schema","phase","entry_id","job_id","queue_state","registered_via_real_apis",
+                      "entry_is_private","authenticated","technical_score","public_score_empty",
+                      "consent_off","replay_denied","accepting","expires_in_seconds","failure_category"):
+              print(key,":",obj.get(key))
+          assert obj.get("public_score_empty") is True
+          assert obj.get("consent_off") is True
+          assert obj.get("authenticated") is True
+          assert obj.get("technical_score")==24
+          print("PASS: private signed 24/90 accepted, never publicly scored")
+          PY
