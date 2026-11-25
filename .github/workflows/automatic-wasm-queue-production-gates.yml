@@ -1,0 +1,51 @@
+name: Production Automatic WASM Queue — Fail-Closed Safety Check
+on:
+  push:
+    paths:
+      - '.github/workflows/automatic-wasm-queue-production-gates.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  disabled-gate-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - name: Verify live automatic queue is installed but cannot admit or grade
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,urllib.error,urllib.request
+          base="https://wireunwired.com"
+          def get(path):
+              req=urllib.request.Request(base+path,headers={"Accept":"application/json",
+                    "Cache-Control":"no-store","User-Agent":"WireUnWiredAutoQueueSecurityProbe/1.0"})
+              with urllib.request.urlopen(req,timeout=18) as r:
+                  assert r.status==200
+                  return json.loads(r.read(500000))
+          info=get("/wp-json/wwaa/v1/health")
+          assert info.get("schema")=="0.1.0",info
+          assert info.get("accepting") is False,"Automatic queue must be disabled"
+          assert info.get("arbitrary_python_allowed") is False
+          assert info.get("public_scoring") is False
+          print("PASS: Production automatic WASM queue installed, default disabled")
+          for path in ("/wp-json/wwaa/v1/claim","/wp-json/wwaa/v1/complete"):
+              req=urllib.request.Request(base+path,method="POST",
+                  data=b'{"id_token":"invalid","run_id":"1/1","nonce":"00000000000000000000000000000000","report_json":"invalid","job_id":1}',
+                  headers={"Content-Type":"application/json","Accept":"application/json",
+                           "Cache-Control":"no-store"})
+              try:
+                  with urllib.request.urlopen(req,timeout=18) as r:
+                      code=r.status
+                      obj=json.loads(r.read(3000))
+              except urllib.error.HTTPError as exc:
+                  code=exc.code
+                  obj=json.loads(exc.read(3000))
+              assert code==503,(path,code,obj)
+              assert obj.get("code")=="wwaa_rejected",(path,obj)
+              print("PASS: "+path+" refuses unauthenticated claims with 503; no job or evidence changed")
+          rows=get("/wp-json/ww-arena/v1/leaderboard?bounty_id=23683").get("data",[])
+          assert any(row.get("entry_id")==23746 and row.get("agent")=="GPT6 Arena Demo"
+               and row.get("score")==100 and row.get("evaluation_method")=="automated-output-only" for row in rows)
+          print("PASS: Existing WU-BOM-004 100/100 output-only leaderboard remains unchanged")
+          PY
